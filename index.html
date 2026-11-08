@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jelajah Fisika Pac-Man: Ekspedisi GLB & GLBB Nusantara</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Canvas Confetti CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            touch-action: manipulation;
+        }
+
+        /* Custom Canvas Styling for Neon Maze */
+        #gameCanvas {
+            background-color: #020617;
+            border: 4px solid #3b82f6;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+            border-radius: 12px;
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* Shake animation for wrong answers */
+        .animate-shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-2px, 0, 0); }
+            20%, 80% { transform: translate3d(4px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+            40%, 60% { transform: translate3d(6px, 0, 0); }
+        }
+
+        /* Pulse glow for Physics Portals */
+        .portal-pulse {
+            animation: pulseGlow 1.5s infinite alternate;
+        }
+
+        @keyframes pulseGlow {
+            0% { box-shadow: 0 0 5px #eab308; }
+            100% { box-shadow: 0 0 20px #eab308, 0 0 30px #f59e0b; }
+        }
+
+        /* D-Pad Touch Controls */
+        .dpad-btn {
+            background: linear-gradient(145deg, #1e293b, #0f172a);
+            box-shadow: 4px 4px 8px #090d16, -4px -4px 8px #1e293b;
+        }
+        .dpad-btn:active {
+            background: #3b82f6;
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-2 md:p-4 bg-slate-950 text-slate-100">
+
+    <!-- TOP HEADER / STATS BAR -->
+    <header class="w-full max-w-4xl mx-auto mb-3 bg-slate-900/90 border border-slate-800 rounded-2xl p-3 md:p-4 shadow-xl backdrop-blur">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <!-- Game Title & Concept -->
+            <div class="flex items-center space-x-3">
+                <div class="p-2.5 bg-yellow-500/20 border border-yellow-500/40 rounded-xl text-yellow-400">
+                    <i class="fa-solid fa-ghost text-2xl animate-bounce"></i>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-base md:text-xl text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-amber-300 to-orange-400">
+                        PAC-PHYSICS: GLB & GLBB
+                    </h1>
+                    <p class="text-xs text-slate-400">Fase E SMA • Kurikulum Merdeka Mendalam</p>
+                </div>
+            </div>
+
+            <!-- Stats: Score, Hearts, Checkpoints, Timer -->
+            <div class="flex items-center gap-3 text-xs md:text-sm font-semibold">
+                <div class="bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center gap-1.5">
+                    <i class="fa-solid fa-star text-yellow-400"></i>
+                    <span id="scoreDisplay" class="text-yellow-300 font-bold">0</span>
+                </div>
+                <div class="bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center gap-1.5">
+                    <i class="fa-solid fa-heart text-rose-500"></i>
+                    <span id="livesDisplay" class="text-rose-400 font-bold">❤️❤️❤️</span>
+                </div>
+                <div class="bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center gap-1.5">
+                    <i class="fa-solid fa-map-pin text-cyan-400"></i>
+                    <span id="progressDisplay" class="text-cyan-300">0/5 Pos</span>
+                </div>
+                <div class="bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center gap-1.5">
+                    <i class="fa-solid fa-clock text-amber-400"></i>
+                    <span id="timerDisplay" class="text-amber-300 font-mono">15:00</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN GAME AREA -->
+    <main class="w-full max-w-4xl mx-auto flex-1 flex flex-col md:flex-row gap-4 items-center justify-center">
+        <!-- Canvas Container -->
+        <div class="relative flex flex-col items-center justify-center w-full md:w-auto">
+            <canvas id="gameCanvas" width="440" height="440" class="cursor-pointer"></canvas>
+
+            <!-- Touch D-Pad for Mobile Devices -->
+            <div class="mt-4 grid grid-cols-3 gap-2 w-48 h-36 md:hidden">
+                <div></div>
+                <button id="btnUp" class="dpad-btn rounded-xl flex items-center justify-center text-yellow-400 text-xl font-bold">
+                    <i class="fa-solid fa-caret-up"></i>
+                </button>
+                <div></div>
+                <button id="btnLeft" class="dpad-btn rounded-xl flex items-center justify-center text-yellow-400 text-xl font-bold">
+                    <i class="fa-solid fa-caret-left"></i>
+                </button>
+                <button id="btnDown" class="dpad-btn rounded-xl flex items-center justify-center text-yellow-400 text-xl font-bold">
+                    <i class="fa-solid fa-caret-down"></i>
+                </button>
+                <button id="btnRight" class="dpad-btn rounded-xl flex items-center justify-center text-yellow-400 text-xl font-bold">
+                    <i class="fa-solid fa-caret-right"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Side Control & Learning Info Panel -->
+        <div class="w-full md:w-64 flex flex-col gap-3">
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-lg">
+                <h3 class="text-sm font-bold text-cyan-400 mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-gamepad"></i> Petunjuk Kontrol
+                </h3>
+                <ul class="text-xs text-slate-300 space-y-1.5">
+                    <li><span class="bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700 text-yellow-400 font-mono">Arrow / WASD</span> : Gerakkan Pac-Man</li>
+                    <li><span class="bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700 text-yellow-400">Pellet Kuning</span> : Poin Kecepatan (+10)</li>
+                    <li><span class="bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700 text-cyan-400">Portal Quiz (<i class="fa-solid fa-graduation-cap text-yellow-400"></i>)</span> : Buka Tantangan GLB/GLBB</li>
+                    <li><span class="bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700 text-rose-400">Hantu Vektor</span> : Hindari gesekan! (-1 Nyawa)</li>
+                </ul>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-lg">
+                <h3 class="text-sm font-bold text-emerald-400 mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-lightbulb"></i> Ringkasan Rumus Cepat
+                </h3>
+                <div class="text-xs text-slate-300 space-y-2">
+                    <div class="p-2 bg-slate-950 rounded-lg border border-slate-800">
+                        <span class="font-bold text-yellow-400">GLB (a = 0):</span>
+                        <p class="font-mono text-cyan-300 mt-0.5">s = v × t</p>
+                    </div>
+                    <div class="p-2 bg-slate-950 rounded-lg border border-slate-800">
+                        <span class="font-bold text-yellow-400">GLBB (a = konstan):</span>
+                        <p class="font-mono text-emerald-300 mt-0.5">vₜ = v₀ + a·t</p>
+                        <p class="font-mono text-emerald-300">s = v₀·t + ½·a·t²</p>
+                        <p class="font-mono text-emerald-300">vₜ² = v₀² + 2a·s</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="w-full max-w-4xl mx-auto mt-4 text-center text-xs text-slate-500">
+        Media Asesmen Formatif Interaktif Fisika • Kurikulum Merdeka Pendekatan Pembelajaran Mendalam (Deep Learning)
+    </footer>
+
+    <!-- MODAL 1: START GAME & CONTEXT STORY -->
+    <div id="startModal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-slate-700 max-w-lg w-full rounded-3xl p-6 shadow-2xl text-center space-y-4">
+            <div class="w-16 h-16 bg-yellow-500/20 border border-yellow-500/50 text-yellow-400 rounded-2xl flex items-center justify-center mx-auto text-3xl">
+                <i class="fa-solid fa-compass"></i>
+            </div>
+            <h2 class="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-500">
+                Misi Ekspedisi Trans-Nusantara
+            </h2>
+            <p class="text-sm text-slate-300 leading-relaxed">
+                Halo Penjelajah Muda! Kamu bertugas mengendalikan kendaraan uji gerak di jalur ekspedisi Kendari-Makassar dan Tol Trans-Jawa. 
+                Jelajahi labirin, kumpulkan energi gerak, dan selesaikan **5 Pos Tantangan GLB & GLBB** untuk menuntaskan asesmen formatif ini!
+            </p>
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-left text-xs text-slate-400 space-y-1">
+                <p class="text-yellow-400 font-semibold"><i class="fa-solid fa-check-circle"></i> Target Pembelajaran:</p>
+                <p>• Menganalisis karakteristik GLB (Kecepatan Konstan, $a = 0$)</p>
+                <p>• Menganalisis GLBB (Percepatan Konstan, $a \neq 0$)</p>
+                <p>• Menghitung Jarak, Kecepatan, dan Waktu Tempuh Kontekstual</p>
+            </div>
+            <button id="btnStartGame" class="w-full py-3.5 px-6 bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-slate-950 font-bold text-base rounded-2xl shadow-lg transition duration-200 transform hover:scale-[1.02]">
+                Mulai Petualangan <i class="fa-solid fa-play ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL 2: PHYSICS QUESTION PORTAL -->
+    <div id="questionModal" class="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+        <div id="questionBox" class="bg-slate-900 border border-amber-500/40 max-w-xl w-full rounded-3xl p-6 shadow-2xl space-y-5">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <span id="questionTaxonomy" class="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full text-xs font-bold">
+                    C1 - Mengingat
+                </span>
+                <span id="questionPortalTitle" class="text-xs font-semibold text-slate-400">
+                    Pos Tantangan Fisika
+                </span>
+            </div>
+
+            <!-- Question Text -->
+            <div class="space-y-2">
+                <h3 id="questionText" class="text-base md:text-lg font-bold text-slate-100 leading-snug">
+                    Soal Fisika akan tampil di sini...
+                </h3>
+            </div>
+
+            <!-- Options Grid -->
+            <div id="optionsContainer" class="grid grid-cols-1 gap-2.5">
+                <!-- Option buttons injected dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: REFLECTIVE FEEDBACK (EXPLANATION) -->
+    <div id="feedbackModal" class="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-slate-900 border border-slate-700 max-w-lg w-full rounded-3xl p-6 shadow-2xl text-center space-y-4">
+            <div id="feedbackIconContainer" class="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto text-3xl">
+                <!-- Icon dynamically inserted -->
+            </div>
+            <h3 id="feedbackTitle" class="text-xl font-bold">
+                Jawaban Benar!
+            </h3>
+            
+            <!-- Conceptual Explanation Box -->
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-left space-y-2">
+                <span class="text-xs font-bold text-cyan-400 uppercase tracking-wider block">Refleksi Konsep Fisika:</span>
+                <p id="feedbackExplanation" class="text-xs md:text-sm text-slate-300 leading-relaxed">
+                    Penjelasan rinci konsep fisika...
+                </p>
+            </div>
+
+            <button id="btnContinueGame" class="w-full py-3 px-6 bg-slate-800 hover:bg-slate-700 text-yellow-400 border border-yellow-500/30 font-bold text-sm rounded-xl shadow-lg transition">
+                Lanjutkan Jelajah Labirin <i class="fa-solid fa-arrow-right ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL 4: GAME OVER / VICTORY SUMMARY -->
+    <div id="endModal" class="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-slate-900 border border-slate-700 max-w-lg w-full rounded-3xl p-6 shadow-2xl text-center space-y-5">
+            <div id="endBadgeIcon" class="w-20 h-20 bg-yellow-500/20 border border-yellow-500/50 text-yellow-400 rounded-3xl flex items-center justify-center mx-auto text-4xl shadow-inner">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+            
+            <div>
+                <h2 id="endTitle" class="text-2xl font-extrabold text-slate-100">
+                    Ekspedisi Selesai!
+                </h2>
+                <p id="endSubtitle" class="text-xs text-slate-400 mt-1">
+                    Hasil Evaluasi Formatif Fisika GLB & GLBB
+                </p>
+            </div>
+
+            <!-- Score Summary Card -->
+            <div class="grid grid-cols-2 gap-3 bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                <div class="text-center">
+                    <span class="text-xs text-slate-400 block">Skor Akhir</span>
+                    <span id="finalScore" class="text-2xl font-black text-yellow-400">0</span>
+                </div>
+                <div class="text-center">
+                    <span class="text-xs text-slate-400 block">Pos Terselesaikan</span>
+                    <span id="finalCheckpoints" class="text-2xl font-black text-cyan-400">0/5</span>
+                </div>
+            </div>
+
+            <!-- Earned Badge Badge -->
+            <div class="bg-slate-800/60 p-3 rounded-xl border border-slate-700">
+                <span class="text-xs text-slate-400 block mb-1">Lencana Prestasi Diperoleh:</span>
+                <span id="earnedBadge" class="text-sm font-bold text-amber-300">
+                    🥇 Master GLB & GLBB Nusantara
+                </span>
+            </div>
+
+            <button id="btnRestartGame" class="w-full py-3.5 px-6 bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-slate-950 font-bold text-sm rounded-xl shadow-lg transition transform hover:scale-[1.02]">
+                Main Lagi / Ulang Asesmen <i class="fa-solid fa-rotate-right ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT GAME LOGIC -->
+    <script>
+        // =========================================================================
+        // DATA SOAL FISIKA (BISA DIEDIT/DITAMBAHKAN OLEH GURU)
+        // =========================================================================
+        const physicsQuestions = [
+            {
+                id: 1,
+                level: "C1 - Mengingat",
+                question: "Apa perbedaan fundamental antara Gerak Lurus Beraturan (GLB) dan Gerak Lurus Berubah Beraturan (GLBB)?",
+                options: [
+                    "GLB memiliki percepatan konstan (a ≠ 0), sedangkan GLBB kecepatannya tetap",
+                    "GLB memiliki kecepatan konstan (a = 0), sedangkan GLBB memiliki percepatan konstan (a ≠ 0)",
+                    "GLB lintasannya melingkar, sedangkan GLBB lintasannya berupa parabola",
+                    "GLB kecepatannya selalu bertambah secara ekponensial setiap detik"
+                ],
+                correct: 1,
+                explanation: "Pada GLB, besar dan arah kecepatan benda selalu bernilai konstan sehingga percepatannya nol (a = 0). Sedangkan pada GLBB, kecepatan benda berubah secara teratur karena mengalami percepatan yang bernilai konstan (a ≠ 0)."
+            },
+            {
+                id: 2,
+                level: "C2 - Memahami",
+                question: "Sebuah bus Trans-Jawa melaju lurus di jalan tol dengan kecepatan konstan 20 m/s selama 15 detik. Berapakah jarak total yang ditempuh bus tersebut?",
+                options: [
+                    "150 Meter",
+                    "300 Meter",
+                    "450 Meter",
+                    "600 Meter"
+                ],
+                correct: 1,
+                explanation: "Karena bus melaju dengan kecepatan konstan, berlaku rumus GLB: s = v × t. Maka s = 20 m/s × 15 s = 300 meter."
+            },
+            {
+                id: 3,
+                level: "C3 - Menerapkan",
+                question: "Kereta Cepat Whoosh berangkat dari stasiun awal dalam keadaan diam (v₀ = 0 m/s). Kereta mengalami percepatan konstan 2 m/s². Berapa kecepatan kereta setelah 10 detik?",
+                options: [
+                    "10 m/s",
+                    "15 m/s",
+                    "20 m/s",
+                    "40 m/s"
+                ],
+                correct: 2,
+                explanation: "Gunakan rumus GLBB dipercepat: vₜ = v₀ + (a × t). Kecepatan awal v₀ = 0, percepatan a = 2 m/s², dan t = 10 s. Jadi vₜ = 0 + (2 × 10) = 20 m/s."
+            },
+            {
+                id: 4,
+                level: "C3 - Menerapkan",
+                question: "Sebuah mobil listrik direm mendadak dengan perlambatan konstan 4 m/s² dari kecepatan awal 20 m/s hingga berhenti total. Berapa jarak pengereman yang dibutuhkan?",
+                options: [
+                    "25 Meter",
+                    "50 Meter",
+                    "75 Meter",
+                    "100 Meter"
+                ],
+                correct: 1,
+                explanation: "Gunakan rumus GLBB: vₜ² = v₀² + 2as. Saat berhenti vₜ = 0, v₀ = 20 m/s, dan a = -4 m/s² (perlambatan). Maka 0 = (20)² + 2(-4)s ➔ 8s = 400 ➔ s = 50 meter."
+            },
+            {
+                id: 5,
+                level: "C4 - Menganalisis",
+                question: "Grafik hubungan kecepatan (v) terhadap waktu (t) menunjukkan garis lurus miring ke atas dari titik (0, 5 m/s) hingga (4 s, 25 m/s). Manakah analisis gerak yang tepat?",
+                options: [
+                    "Benda mengalami GLB dengan percepatan 5 m/s²",
+                    "Benda mengalami GLBB dengan percepatan 5 m/s² dan jarak tempuh 60 m",
+                    "Benda mengalami GLBB dengan perlambatan 5 m/s² dan jarak tempuh 100 m",
+                    "Benda dalam kondisi diam pada detik ke-4"
+                ],
+                correct: 1,
+                explanation: "Percepatan a = (vₜ - v₀)/t = (25 - 5)/4 = 5 m/s². Jarak tempuh s adalah luas trapesium di bawah grafik v-t: s = [(v₀ + vₜ)/2] × t = [(5 + 25)/2] × 4 = 15 × 4 = 60 meter."
+            }
+        ];
+
+        // =========================================================================
+        // MAZE MAP DEFINITION (1 = Wall, 0 = Pellet, 2 = Question Portal)
+        // Grid Size: 15 rows x 15 columns
+        // =========================================================================
+        const mazeGrid = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,2,0,0,0,1,0,0,0,1,0,0,0,2,1],
+            [1,0,1,1,0,1,0,1,0,1,0,1,1,0,1],
+            [1,0,1,0,0,0,0,1,0,0,0,0,1,0,1],
+            [1,0,1,0,1,1,1,1,1,1,1,0,1,0,1],
+            [1,0,0,0,0,0,0,2,0,0,0,0,0,0,1],
+            [1,1,1,0,1,1,0,0,0,1,1,0,1,1,1],
+            [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+            [1,1,1,0,1,1,1,0,1,1,1,0,1,1,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,1,1,0,1,1,1,1,1,0,1,1,0,1],
+            [1,0,0,1,0,0,0,2,0,0,0,1,0,0,1],
+            [1,1,0,1,0,1,0,1,0,1,0,1,0,1,1],
+            [1,2,0,0,0,1,0,0,0,1,0,0,0,2,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+
+        // Canvas & Context Setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const GRID_ROWS = 15;
+        const GRID_COLS = 15;
+        let tileSize = canvas.width / GRID_COLS;
+
+        // Game State Variables
+        let score = 0;
+        let lives = 3;
+        let checkpointsCleared = 0;
+        let currentQuestionIndex = null;
+        let isGamePaused = false;
+        let isGameOver = false;
+        let timerSeconds = 15 * 60; // 15 Minutes assessment duration
+        let timerInterval = null;
+        let activePortals = [];
+
+        // Player (Pac-Man) State
+        let player = {
+            gridX: 7,
+            gridY: 7,
+            x: 7 * tileSize + tileSize / 2,
+            y: 7 * tileSize + tileSize / 2,
+            dirX: 0,
+            dirY: 0,
+            nextDirX: 0,
+            nextDirY: 0,
+            speed: 2.5,
+            mouthAngle: 0.2,
+            mouthSpeed: 0.02,
+            isPowerMode: false,
+            powerTimer: 0
+        };
+
+        // Ghosts State
+        let ghosts = [
+            { x: 1 * tileSize + tileSize/2, y: 1 * tileSize + tileSize/2, gridX: 1, gridY: 1, color: '#ef4444', dirX: 1, dirY: 0 },
+            { x: 13 * tileSize + tileSize/2, y: 1 * tileSize + tileSize/2, gridX: 13, gridY: 1, color: '#ec4899', dirX: -1, dirY: 0 },
+            { x: 1 * tileSize + tileSize/2, y: 13 * tileSize + tileSize/2, gridX: 1, gridY: 13, color: '#06b6d4', dirX: 0, dirY: -1 }
+        ];
+
+        // Deep copy maze map for current round
+        let currentMaze = JSON.parse(JSON.stringify(mazeGrid));
+
+        // Initialize active physics checkpoints map
+        function initPortals() {
+            activePortals = [];
+            let qIdx = 0;
+            for(let r=0; r<GRID_ROWS; r++) {
+                for(let c=0; c<GRID_COLS; c++) {
+                    if(currentMaze[r][c] === 2) {
+                        activePortals.push({
+                            row: r,
+                            col: c,
+                            questionIndex: qIdx % physicsQuestions.length,
+                            active: true
+                        });
+                        qIdx++;
+                    }
+                }
+            }
+        }
+
+        // Adjust Canvas for Responsiveness
+        function resizeCanvas() {
+            const containerWidth = canvas.parentElement.clientWidth;
+            const size = Math.min(containerWidth, 440);
+            canvas.width = size;
+            canvas.height = size;
+            tileSize = canvas.width / GRID_COLS;
+            
+            // Recalculate coordinates
+            player.x = player.gridX * tileSize + tileSize / 2;
+            player.y = player.gridY * tileSize + tileSize / 2;
+            ghosts.forEach(g => {
+                g.x = g.gridX * tileSize + tileSize / 2;
+                g.y = g.gridY * tileSize + tileSize / 2;
+            });
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // Controls: Keyboard WASD / Arrow Keys
+        window.addEventListener('keydown', (e) => {
+            if(isGamePaused || isGameOver) return;
+            switch(e.key) {
+                case 'ArrowUp': case 'w': case 'W':
+                    player.nextDirX = 0; player.nextDirY = -1; break;
+                case 'ArrowDown': case 's': case 'S':
+                    player.nextDirX = 0; player.nextDirY = 1; break;
+                case 'ArrowLeft': case 'a': case 'A':
+                    player.nextDirX = -1; player.nextDirY = 0; break;
+                case 'ArrowRight': case 'd': case 'D':
+                    player.nextDirX = 1; player.nextDirY = 0; break;
+            }
+        });
+
+        // Touch D-Pad Controls Setup
+        document.getElementById('btnUp').addEventListener('click', () => { player.nextDirX = 0; player.nextDirY = -1; });
+        document.getElementById('btnDown').addEventListener('click', () => { player.nextDirX = 0; player.nextDirY = 1; });
+        document.getElementById('btnLeft').addEventListener('click', () => { player.nextDirX = -1; player.nextDirY = 0; });
+        document.getElementById('btnRight').addEventListener('click', () => { player.nextDirX = 1; player.nextDirY = 0; });
+
+        // Update UI Displays
+        function updateUI() {
+            document.getElementById('scoreDisplay').innerText = score;
+            document.getElementById('livesDisplay').innerText = '❤️'.repeat(Math.max(0, lives));
+            document.getElementById('progressDisplay').innerText = `${checkpointsCleared}/5 Pos`;
+        }
+
+        // Timer Countdown Logic
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if(!isGamePaused && !isGameOver) {
+                    timerSeconds--;
+                    const mins = Math.floor(timerSeconds / 60);
+                    const secs = timerSeconds % 60;
+                    document.getElementById('timerDisplay').innerText = 
+                        `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                    
+                    if(timerSeconds <= 0) {
+                        endGame(false, "Waktu Asesmen Telah Habis!");
+                    }
+                }
+            }, 1000);
+        }
+
+        // =========================================================================
+        // MAIN GAME LOOP & RENDERING
+        // =========================================================================
+        function drawMaze() {
+            for(let r = 0; r < GRID_ROWS; r++) {
+                for(let c = 0; c < GRID_COLS; c++) {
+                    const cell = currentMaze[r][c];
+                    const x = c * tileSize;
+                    const y = r * tileSize;
+
+                    if(cell === 1) { // Blue Wall
+                        ctx.fillStyle = '#1e3a8a';
+                        ctx.strokeStyle = '#3b82f6';
+                        ctx.lineWidth = 2;
+                        ctx.fillRect(x, y, tileSize, tileSize);
+                        ctx.strokeRect(x+2, y+2, tileSize-4, tileSize-4);
+                    } else if(cell === 0) { // Small Pellet
+                        ctx.fillStyle = '#fde047';
+                        ctx.beginPath();
+                        ctx.arc(x + tileSize/2, y + tileSize/2, tileSize/8, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else if(cell === 2) { // Glowing Physics Portal
+                        ctx.fillStyle = '#eab308';
+                        ctx.shadowBlur = 10;
+                        ctx.shadowColor = '#f59e0b';
+                        ctx.beginPath();
+                        ctx.arc(x + tileSize/2, y + tileSize/2, tileSize/3, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.shadowBlur = 0;
+
+                        // Draw Icon Icon/Text '?' inside portal
+                        ctx.fillStyle = '#020617';
+                        ctx.font = `bold ${tileSize/2.2}px sans-serif`;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText('?', x + tileSize/2, y + tileSize/2);
+                    }
+                }
+            }
+        }
+
+        function updatePlayer() {
+            if(isGamePaused) return;
+
+            // Check if turn is possible
+            const targetCellX = Math.floor((player.x + player.nextDirX * (tileSize/2 + 2)) / tileSize);
+            const targetCellY = Math.floor((player.y + player.nextDirY * (tileSize/2 + 2)) / tileSize);
+            
+            if(currentMaze[targetCellY] && currentMaze[targetCellY][targetCellX] !== 1) {
+                player.dirX = player.nextDirX;
+                player.dirY = player.nextDirY;
+            }
+
+            // Calculate next move position
+            const nextX = player.x + player.dirX * player.speed;
+            const nextY = player.y + player.dirY * player.speed;
+
+            const currentCellX = Math.floor(nextX / tileSize);
+            const currentCellY = Math.floor(nextY / tileSize);
+
+            // Wall Collision Check
+            if(currentMaze[currentCellY] && currentMaze[currentCellY][currentCellX] !== 1) {
+                player.x = nextX;
+                player.y = nextY;
+                player.gridX = currentCellX;
+                player.gridY = currentCellY;
+            }
+
+            // Mouth Animation
+            player.mouthAngle += player.mouthSpeed;
+            if(player.mouthAngle > 0.4 || player.mouthAngle < 0.05) {
+                player.mouthSpeed = -player.mouthSpeed;
+            }
+
+            // Eating Pellets Collision Check
+            if(currentMaze[player.gridY][player.gridX] === 0) {
+                currentMaze[player.gridY][player.gridX] = -1; // Cleared
+                score += 10;
+                updateUI();
+            }
+
+            // Portal Physics Question Collision Check
+            const portal = activePortals.find(p => p.active && p.row === player.gridY && p.col === player.gridX);
+            if(portal) {
+                triggerQuestion(portal);
+            }
+        }
+
+        function drawPlayer() {
+            ctx.fillStyle = player.isPowerMode ? '#38bdf8' : '#facc15';
+            ctx.beginPath();
+            
+            let angle = 0;
+            if (player.dirX === 1) angle = 0;
+            else if (player.dirX === -1) angle = Math.PI;
+            else if (player.dirY === 1) angle = Math.PI / 2;
+            else if (player.dirY === -1) angle = -Math.PI / 2;
+
+            ctx.arc(
+                player.x, player.y, tileSize / 2.2, 
+                angle + player.mouthAngle, 
+                angle + Math.PI * 2 - player.mouthAngle
+            );
+            ctx.lineTo(player.x, player.y);
+            ctx.fill();
+        }
+
+        function updateGhosts() {
+            if(isGamePaused) return;
+
+            ghosts.forEach(g => {
+                const nextX = g.x + g.dirX * (player.speed * 0.7);
+                const nextY = g.y + g.dirY * (player.speed * 0.7);
+                const cellX = Math.floor(nextX / tileSize);
+                const cellY = Math.floor(nextY / tileSize);
+
+                if(currentMaze[cellY] && currentMaze[cellY][cellX] !== 1) {
+                    g.x = nextX;
+                    g.y = nextY;
+                    g.gridX = cellX;
+                    g.gridY = cellY;
+                } else {
+                    // Randomize Direction on Collision
+                    const dirs = [
+                        {x: 1, y: 0}, {x: -1, y: 0},
+                        {x: 0, y: 1}, {x: 0, y: -1}
+                    ];
+                    const randomDir = dirs[Math.floor(Math.random() * dirs.length)];
+                    g.dirX = randomDir.x;
+                    g.dirY = randomDir.y;
+                }
+
+                // Ghost Collision with Player
+                const dist = Math.hypot(player.x - g.x, player.y - g.y);
+                if(dist < tileSize / 1.5) {
+                    if(player.isPowerMode) {
+                        // Eat Ghost
+                        g.x = 7 * tileSize + tileSize/2;
+                        g.y = 7 * tileSize + tileSize/2;
+                        score += 100;
+                        updateUI();
+                    } else {
+                        // Player damaged
+                        handlePlayerHit();
+                    }
+                }
+            });
+        }
+
+        function drawGhosts() {
+            ghosts.forEach(g => {
+                ctx.fillStyle = player.isPowerMode ? '#60a5fa' : g.color;
+                ctx.beginPath();
+                ctx.arc(g.x, g.y - 2, tileSize / 2.3, Math.PI, 0, false);
+                ctx.lineTo(g.x + tileSize / 2.3, g.y + tileSize / 2.3);
+                ctx.lineTo(g.x - tileSize / 2.3, g.y + tileSize / 2.3);
+                ctx.closePath();
+                ctx.fill();
+
+                // Eyes
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(g.x - 4, g.y - 4, 3, 0, Math.PI * 2);
+                ctx.arc(g.x + 4, g.y - 4, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath();
+                ctx.arc(g.x - 4, g.y - 4, 1.5, 0, Math.PI * 2);
+                ctx.arc(g.x + 4, g.y - 4, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function handlePlayerHit() {
+            lives--;
+            updateUI();
+            
+            // Screen shake effect on canvas
+            canvas.classList.add('animate-shake');
+            setTimeout(() => canvas.classList.remove('animate-shake'), 400);
+
+            // Reset player position
+            player.x = 7 * tileSize + tileSize / 2;
+            player.y = 7 * tileSize + tileSize / 2;
+            player.dirX = 0; player.dirY = 0;
+            player.nextDirX = 0; player.nextDirY = 0;
+
+            if(lives <= 0) {
+                endGame(false, "Kamu kehabisan energi/nyawa!");
+            }
+        }
+
+        // Game Loop Animation
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawMaze();
+            updatePlayer();
+            drawPlayer();
+            updateGhosts();
+            drawGhosts();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // =========================================================================
+        // QUESTION & MODAL HANDLING (FORMAL ASSESSMENT & REFLECTION)
+        // =========================================================================
+        function triggerQuestion(portal) {
+            isGamePaused = true;
+            currentQuestionIndex = portal.questionIndex;
+            const q = physicsQuestions[portal.questionIndex];
+
+            document.getElementById('questionTaxonomy').innerText = q.level;
+            document.getElementById('questionText').innerText = q.question;
+
+            const optionsContainer = document.getElementById('optionsContainer');
+            optionsContainer.innerHTML = '';
+
+            q.options.forEach((optText, idx) => {
+                const btn = document.createElement('button');
+                btn.className = "w-full text-left p-3.5 bg-slate-800 hover:bg-slate-700/80 border border-slate-700 hover:border-yellow-500/50 rounded-2xl text-xs md:text-sm font-medium transition flex items-center justify-between group";
+                btn.innerHTML = `
+                    <span>${optText}</span>
+                    <i class="fa-regular fa-circle-check opacity-0 group-hover:opacity-100 text-yellow-400 transition"></i>
+                `;
+                btn.onclick = () => submitAnswer(idx, portal);
+                optionsContainer.appendChild(btn);
+            });
+
+            document.getElementById('questionModal').classList.remove('hidden');
+        }
+
+        function submitAnswer(selectedIndex, portal) {
+            document.getElementById('questionModal').classList.add('hidden');
+            const q = physicsQuestions[portal.questionIndex];
+            const isCorrect = (selectedIndex === q.correct);
+
+            const feedbackIconContainer = document.getElementById('feedbackIconContainer');
+            const feedbackTitle = document.getElementById('feedbackTitle');
+            const feedbackExplanation = document.getElementById('feedbackExplanation');
+
+            if(isCorrect) {
+                score += 200;
+                checkpointsCleared++;
+                portal.active = false;
+                currentMaze[portal.row][portal.col] = -1; // Clear portal wall
+
+                // Enable Super Power Mode (pacman speed boost)
+                player.isPowerMode = true;
+                setTimeout(() => { player.isPowerMode = false; }, 8000);
+
+                feedbackIconContainer.className = "w-16 h-16 bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto text-3xl";
+                feedbackIconContainer.innerHTML = `<i class="fa-solid fa-circle-check"></i>`;
+                feedbackTitle.className = "text-xl font-bold text-emerald-400";
+                feedbackTitle.innerText = "Jawaban Tepat! (+200 Poin)";
+
+                confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+            } else {
+                lives--;
+                feedbackIconContainer.className = "w-16 h-16 bg-rose-500/20 border border-rose-500/50 text-rose-400 rounded-2xl flex items-center justify-center mx-auto text-3xl";
+                feedbackIconContainer.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i>`;
+                feedbackTitle.className = "text-xl font-bold text-rose-400";
+                feedbackTitle.innerText = "Jawaban Kurang Tepat (-1 Nyawa)";
+            }
+
+            feedbackExplanation.innerText = q.explanation;
+            updateUI();
+
+            document.getElementById('feedbackModal').classList.remove('hidden');
+        }
+
+        document.getElementById('btnContinueGame').addEventListener('click', () => {
+            document.getElementById('feedbackModal').classList.add('hidden');
+            
+            if(checkpointsCleared >= 5) {
+                endGame(true, "Selamat! Seluruh Pos GLB & GLBB Berhasil Dituntaskan!");
+            } else if(lives <= 0) {
+                endGame(false, "Kehabisan nyawa setelah menjawab tantangan.");
+            } else {
+                isGamePaused = false;
+            }
+        });
+
+        // End Game Function (Victory/Defeat)
+        function endGame(isWin, message) {
+            isGameOver = true;
+            isGamePaused = true;
+            clearInterval(timerInterval);
+
+            // Save Highscore in Session Storage
+            const savedHighScore = sessionStorage.getItem('physics_pacman_highscore') || 0;
+            if(score > savedHighScore) {
+                sessionStorage.setItem('physics_pacman_highscore', score);
+            }
+
+            const endBadgeIcon = document.getElementById('endBadgeIcon');
+            const endTitle = document.getElementById('endTitle');
+            const endSubtitle = document.getElementById('endSubtitle');
+            const earnedBadge = document.getElementById('earnedBadge');
+
+            if(isWin) {
+                endBadgeIcon.className = "w-20 h-20 bg-yellow-500/20 border border-yellow-500/50 text-yellow-400 rounded-3xl flex items-center justify-center mx-auto text-4xl shadow-inner";
+                endBadgeIcon.innerHTML = `<i class="fa-solid fa-award"></i>`;
+                endTitle.innerText = "Kemenangan Ekspedisi!";
+                endTitle.className = "text-2xl font-extrabold text-yellow-400";
+                endSubtitle.innerText = message;
+                earnedBadge.innerText = "🏆 Pakar GLB & GLBB Trans-Nusantara";
+
+                confetti({ particleCount: 150, spread: 100, origin: { y: 0.5 } });
+            } else {
+                endBadgeIcon.className = "w-20 h-20 bg-slate-800 border border-slate-700 text-slate-400 rounded-3xl flex items-center justify-center mx-auto text-4xl shadow-inner";
+                endBadgeIcon.innerHTML = `<i class="fa-solid fa-circle-xmark"></i>`;
+                endTitle.innerText = "Ekspedisi Terhenti";
+                endTitle.className = "text-2xl font-extrabold text-rose-400";
+                endSubtitle.innerText = message;
+                earnedBadge.innerText = "📜 Peserta Uji Coba Fisika GLB";
+            }
+
+            document.getElementById('finalScore').innerText = score;
+            document.getElementById('finalCheckpoints').innerText = `${checkpointsCleared}/5`;
+
+            document.getElementById('endModal').classList.remove('hidden');
+        }
+
+        // Restart Game Event
+        document.getElementById('btnRestartGame').addEventListener('click', () => {
+            document.getElementById('endModal').classList.add('hidden');
+            resetGame();
+        });
+
+        function resetGame() {
+            score = 0;
+            lives = 3;
+            checkpointsCleared = 0;
+            isGamePaused = false;
+            isGameOver = false;
+            timerSeconds = 15 * 60;
+
+            currentMaze = JSON.parse(JSON.stringify(mazeGrid));
+            initPortals();
+
+            player.gridX = 7; player.gridY = 7;
+            player.x = 7 * tileSize + tileSize / 2;
+            player.y = 7 * tileSize + tileSize / 2;
+            player.dirX = 0; player.dirY = 0;
+            player.nextDirX = 0; player.nextDirY = 0;
+
+            updateUI();
+            startTimer();
+        }
+
+        // Start Button Click Event
+        document.getElementById('btnStartGame').addEventListener('click', () => {
+            document.getElementById('startModal').classList.add('hidden');
+            resizeCanvas();
+            initPortals();
+            startTimer();
+            requestAnimationFrame(gameLoop);
+        });
+    </script>
+</body>
+</html>
